@@ -60,7 +60,7 @@
         <h2>Game Over!</h2>
         <p>Your score: <span id="finalScore"></span></p>
         <button id="restartButton">Restart Game</button>
-        <p>Press Enter, Space, Up Arrow, or tap to restart</p>
+        <p>Press Enter, Space, Up Arrow, Down Arrow, or tap to restart</p>
     </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -73,9 +73,14 @@
         let player;
         let frameCount = 0;
         let playerImage = new Image();
-        playerImage.src = 'https://spng.pngfind.com/pngs/s/588-5884834_spaceship-space-jump-illustration-hd-png-download.png';
+        playerImage.src = 'C:/Users/Lenovo/.cursor-tutor/download.png';
         let cactusImage = new Image();
         cactusImage.src = 'https://cdn-icons-png.flaticon.com/256/861/861783.png';
+
+        let rockets = [];
+        let rocketSpeed = 10;
+        let rocketImage = new Image();
+        rocketImage.src = 'C:/Users/Lenovo/.cursor-tutor/Designer.png'; // Using the specified rocket image
 
         function initializePlayer() {
             player = {
@@ -84,9 +89,12 @@
                 width: 40,
                 height: 40,
                 jumping: false,
+                ducking: false,
                 jumpStrength: 22,
                 jumpVelocity: 0,
-                gravity: 0.6
+                gravity: 0.6,
+                normalHeight: 40,
+                duckHeight: 20
             };
         }
 
@@ -110,7 +118,11 @@
         let obstacleSpeed = (canvasWidth / 266) + 0.5;
 
         function drawPlayer() {
-            ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+            if (player.ducking) {
+                ctx.drawImage(playerImage, player.x, player.y + player.normalHeight - player.duckHeight, player.width, player.duckHeight);
+            } else {
+                ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+            }
         }
 
         function drawObstacles() {
@@ -162,6 +174,51 @@
                     player.jumping = false;
                     player.jumpVelocity = 0;
                 }
+            } else {
+                // Only adjust y position when not jumping
+                if (player.ducking) {
+                    player.height = player.duckHeight;
+                } else {
+                    player.height = player.normalHeight;
+                }
+                player.y = canvasHeight - player.height;
+            }
+        }
+
+        function drawRockets() {
+            rockets.forEach(rocket => {
+                ctx.drawImage(rocketImage, rocket.x, rocket.y, 20, 10);
+            });
+        }
+
+        function moveRockets() {
+            rockets.forEach(rocket => {
+                rocket.x += rocketSpeed;
+            });
+            rockets = rockets.filter(rocket => rocket.x < canvasWidth);
+        }
+
+        function shootRocket() {
+            rockets.push({
+                x: player.x + player.width,
+                y: player.y + player.height / 2
+            });
+        }
+
+        function checkRocketCollisions() {
+            for (let i = rockets.length - 1; i >= 0; i--) {
+                for (let j = obstacles.length - 1; j >= 0; j--) {
+                    if (rockets[i] && obstacles[j] &&
+                        rockets[i].x < obstacles[j].x + obstacles[j].width &&
+                        rockets[i].x + 20 > obstacles[j].x &&
+                        rockets[i].y < obstacles[j].y + obstacles[j].height &&
+                        rockets[i].y + 10 > obstacles[j].y) {
+                        rockets.splice(i, 1);
+                        obstacles.splice(j, 1);
+                        score += 10; // Bonus points for destroying an obstacle
+                        break;
+                    }
+                }
             }
         }
 
@@ -172,9 +229,13 @@
 
             updatePlayerPosition();
             moveObstacles();
+            moveRockets();
 
             drawPlayer();
             drawObstacles();
+            drawRockets();
+
+            checkRocketCollisions();
 
             if (checkCollision()) {
                 endGame();
@@ -215,13 +276,23 @@
 
         document.addEventListener('keydown', (event) => {
             if (gameOver) {
-                if (event.code === 'Enter' || event.code === 'Space' || event.code === 'ArrowUp') {
+                if (event.code === 'Enter' || event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'ArrowDown') {
                     restartGame();
                 }
             } else {
                 if (event.code === 'Space' || event.code === 'ArrowUp') {
                     jump();
+                } else if (event.code === 'ArrowDown' && !player.jumping) {
+                    player.ducking = true;
+                } else if (event.code === 'ArrowRight') {
+                    shootRocket();
                 }
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (event.code === 'ArrowDown') {
+                player.ducking = false;
             }
         });
 
