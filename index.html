@@ -73,14 +73,14 @@
         let player;
         let frameCount = 0;
         let playerImage = new Image();
-        playerImage.src = 'download.png';
+        playerImage.src = 'download.png'; // Update this to the correct path on your server
         let cactusImage = new Image();
         cactusImage.src = 'https://cdn-icons-png.flaticon.com/256/861/861783.png';
 
         let rockets = [];
         let rocketSpeed = 10;
         let rocketImage = new Image();
-        rocketImage.src = 'Designer.png'; // Using the specified rocket image
+        rocketImage.src = 'Designer.png'; // Update this to the correct path on your server
 
         function initializePlayer() {
             player = {
@@ -187,7 +187,7 @@
 
         function drawRockets() {
             rockets.forEach(rocket => {
-                ctx.drawImage(rocketImage, rocket.x, rocket.y, 20, 10);
+                ctx.drawImage(rocketImage, rocket.x, rocket.y, 30, 15); // Adjust size as needed
             });
         }
 
@@ -316,6 +316,21 @@
         });
 
         restartButton.addEventListener('click', restartGame);
+
+        // Make sure images are loaded before starting the game
+        let imagesLoaded = 0;
+        const totalImages = 3; // player, cactus, and rocket
+
+        function imageLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                gameLoop(); // Start the game once all images are loaded
+            }
+        }
+
+        playerImage.onload = imageLoaded;
+        cactusImage.onload = imageLoaded;
+        rocketImage.onload = imageLoaded;
 
         gameLoop();
     </script>
