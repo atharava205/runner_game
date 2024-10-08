@@ -52,15 +52,53 @@
             font-size: 18px;
             cursor: pointer;
         }
+        #rocketButton, #boostButton {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+        }
+        #rocketButton {
+            top: 20px;
+            right: 20px;
+            background-color: #ff4757;
+        }
+        #boostButton {
+            top: 20px;
+            right: 90px;
+            background-color: #5352ed;
+        }
+        #rocketButton:hover, #boostButton:hover {
+            filter: brightness(1.1);
+        }
+        #rocketButton:active, #boostButton:active {
+            transform: scale(0.95);
+        }
+        #rocketButton:disabled, #boostButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+    <button id="rocketButton">🚀</button>
+    <button id="boostButton">⚡</button>
     <div id="gameOverPopup">
         <h2>Game Over!</h2>
         <p>Your score: <span id="finalScore"></span></p>
         <button id="restartButton">Restart Game</button>
-        <p>Press Enter, Space, Up Arrow, Down Arrow, or tap to restart</p>
+        <p>Press Enter, Space, Up Arrow, or Down Arrow to restart</p>
+        <p>Use Up Arrow or Space to jump, Down Arrow to duck, Right Arrow to shoot rockets, and Shift to activate 15-second slow-motion (20-second cooldown)</p>
     </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -68,6 +106,8 @@
         const gameOverPopup = document.getElementById('gameOverPopup');
         const finalScoreSpan = document.getElementById('finalScore');
         const restartButton = document.getElementById('restartButton');
+        const rocketButton = document.getElementById('rocketButton');
+        const boostButton = document.getElementById('boostButton');
 
         let canvasWidth, canvasHeight;
         let player;
@@ -81,6 +121,17 @@
         let rocketSpeed = 10;
         let rocketImage = new Image();
         rocketImage.src = 'Designer.png'; // Update this to the correct path on your server
+
+        let lastRocketTime = 0;
+        const rocketCooldown = 15000; // 15 seconds in milliseconds
+
+        let playerSpeed = 1; // Normal player speed
+        let boostSpeed = 0.5; // Boosted (slower) player speed
+        let lastBoostTime = 0;
+        const boostCooldown = 20000; // 20 seconds cooldown
+        const boostDuration = 15000; // 15 seconds boost
+        let boostActive = false;
+        let boostTimeout;
 
         function initializePlayer() {
             player = {
@@ -133,7 +184,7 @@
 
         function moveObstacles() {
             obstacles.forEach(obstacle => {
-                obstacle.x -= obstacleSpeed;
+                obstacle.x -= obstacleSpeed * playerSpeed;
             });
 
             if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvasWidth - canvasWidth / 2.3) {
@@ -193,16 +244,20 @@
 
         function moveRockets() {
             rockets.forEach(rocket => {
-                rocket.x += rocketSpeed;
+                rocket.x += rocketSpeed * playerSpeed;
             });
             rockets = rockets.filter(rocket => rocket.x < canvasWidth);
         }
 
         function shootRocket() {
-            rockets.push({
-                x: player.x + player.width,
-                y: player.y + player.height / 2
-            });
+            const currentTime = Date.now();
+            if (currentTime - lastRocketTime > rocketCooldown) {
+                rockets.push({
+                    x: player.x + player.width,
+                    y: player.y + player.height / 2
+                });
+                lastRocketTime = currentTime;
+            }
         }
 
         function checkRocketCollisions() {
@@ -222,6 +277,59 @@
             }
         }
 
+        function updateRocketButton() {
+            const currentTime = Date.now();
+            const timeLeft = Math.max(0, rocketCooldown - (currentTime - lastRocketTime));
+            
+            if (timeLeft > 0) {
+                rocketButton.textContent = (timeLeft / 1000).toFixed(1);
+                rocketButton.disabled = true;
+            } else {
+                rocketButton.textContent = '🚀';
+                rocketButton.disabled = false;
+            }
+        }
+
+        function updateBoostButton() {
+            const currentTime = Date.now();
+            const timeLeft = Math.max(0, boostCooldown - (currentTime - lastBoostTime));
+            
+            if (timeLeft > 0) {
+                boostButton.textContent = (timeLeft / 1000).toFixed(1);
+                boostButton.disabled = true;
+            } else {
+                boostButton.textContent = '⚡';
+                boostButton.disabled = false;
+            }
+        }
+
+        function activateBoost() {
+            const currentTime = Date.now();
+            if (currentTime - lastBoostTime > boostCooldown && !boostActive) {
+                boostActive = true;
+                lastBoostTime = currentTime;
+                playerSpeed = boostSpeed;
+                
+                // Clear any existing timeout
+                if (boostTimeout) {
+                    clearTimeout(boostTimeout);
+                }
+                
+                // Set new timeout for exactly 15 seconds
+                boostTimeout = setTimeout(() => {
+                    boostActive = false;
+                    playerSpeed = 1;
+                }, boostDuration);
+            }
+        }
+
+        function drawBoostEffect() {
+            if (boostActive) {
+                ctx.fillStyle = 'rgba(0, 0, 255, 0.2)'; // Light blue overlay
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            }
+        }
+
         function gameLoop() {
             if (gameOver) return;
 
@@ -234,8 +342,11 @@
             drawPlayer();
             drawObstacles();
             drawRockets();
+            drawBoostEffect();
 
             checkRocketCollisions();
+            updateRocketButton();
+            updateBoostButton();
 
             if (checkCollision()) {
                 endGame();
@@ -244,15 +355,15 @@
 
             frameCount++;
             if (frameCount % 5 === 0) {
-                score++;
-                if (score % 100 === 0) {
+                score += playerSpeed;
+                if (score % 100 === 0 && !boostActive) {
                     obstacleSpeed += 0.5;
                 }
             }
 
             ctx.fillStyle = 'white';
             ctx.font = 'bold 20px Arial';
-            ctx.fillText('Score: ' + score, 10, 30);
+            ctx.fillText('Score: ' + Math.floor(score), 10, 30);
 
             requestAnimationFrame(gameLoop);
         }
@@ -268,9 +379,19 @@
             score = 0;
             frameCount = 0;
             obstacles = [];
+            rockets = [];
             obstacleSpeed = (canvasWidth / 266) + 0.5;
+            playerSpeed = 1;
+            lastRocketTime = 0;
+            lastBoostTime = 0;
+            boostActive = false;
+            if (boostTimeout) {
+                clearTimeout(boostTimeout);
+            }
             initializePlayer();
             gameOverPopup.style.display = 'none';
+            updateRocketButton();
+            updateBoostButton();
             gameLoop();
         }
 
@@ -286,6 +407,8 @@
                     player.ducking = true;
                 } else if (event.code === 'ArrowRight') {
                     shootRocket();
+                } else if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+                    activateBoost();
                 }
             }
         });
@@ -316,6 +439,20 @@
         });
 
         restartButton.addEventListener('click', restartGame);
+
+        rocketButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (!gameOver) {
+                shootRocket();
+            }
+        });
+
+        boostButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (!gameOver) {
+                activateBoost();
+            }
+        });
 
         // Make sure images are loaded before starting the game
         let imagesLoaded = 0;
