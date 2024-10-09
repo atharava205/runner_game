@@ -98,7 +98,7 @@
         <p>Your score: <span id="finalScore"></span></p>
         <button id="restartButton">Restart Game</button>
         <p>Press Enter, Space, Up Arrow, or Down Arrow to restart</p>
-        <p>Use Up Arrow or Space to jump, Down Arrow to duck, Right Arrow to shoot rockets, and Shift to activate 15-second slow-motion (20-second cooldown)</p>
+        <p>Use Up Arrow or Space to jump, Down Arrow to duck, Right Arrow to shoot rockets (5-second cooldown), and Shift to activate 15-second slow-motion (20-second cooldown)</p>
     </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -123,7 +123,7 @@
         rocketImage.src = 'Designer.png'; // Update this to the correct path on your server
 
         let lastRocketTime = 0;
-        const rocketCooldown = 15000; // 15 seconds in milliseconds
+        const rocketCooldown = 5000; // 5 seconds in milliseconds
 
         let playerSpeed = 1; // Normal player speed
         let boostSpeed = 0.5; // Boosted (slower) player speed
@@ -133,6 +133,25 @@
         let boostActive = false;
         let boostTimeout;
 
+        let obstacles = [];
+        let score = 0;
+        let gameOver = false;
+        let obstacleSpeed;
+
+        let fighterJets = []
+        const fighterJetEmoji = '🛩️'
+        const fighterJetSize = 40
+        const fighterJetSpeed = 8
+        const fighterJetScoreThreshold = 500
+
+        function initializeGame() {
+            resizeCanvas();
+            initializePlayer();
+            obstacleSpeed = 5; // Set a fixed initial speed
+            fighterJets = []; // Initialize fighter jets array
+            gameLoop();
+        }
+
         function initializePlayer() {
             player = {
                 x: 50,
@@ -141,11 +160,13 @@
                 height: 40,
                 jumping: false,
                 ducking: false,
-                jumpStrength: 22,
+                jumpStrength: 20, // Kept the same as before
                 jumpVelocity: 0,
-                gravity: 0.6,
+                gravity: 0.55, // Increased slightly from 0.5
                 normalHeight: 40,
-                duckHeight: 20
+                duckHeight: 20,
+                jumpTime: 0,
+                maxJumpTime: 45 // Reduced from 60 to 45 (about 0.75 seconds at 60fps)
             };
         }
 
@@ -162,11 +183,6 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
         initializePlayer();
-
-        let obstacles = [];
-        let score = 0;
-        let gameOver = false;
-        let obstacleSpeed = (canvasWidth / 266) + 0.5;
 
         function drawPlayer() {
             if (player.ducking) {
@@ -200,18 +216,28 @@
         }
 
         function checkCollision() {
-            return obstacles.some(obstacle => 
+            const checkObstacleCollision = obstacles.some(obstacle => 
                 player.x < obstacle.x + obstacle.width &&
                 player.x + player.width > obstacle.x &&
                 player.y < obstacle.y + obstacle.height &&
                 player.y + player.height > obstacle.y
             );
+
+            const checkJetCollision = score >= fighterJetScoreThreshold && fighterJets.some(jet => 
+                player.x < jet.x + fighterJetSize &&
+                player.x + player.width > jet.x &&
+                player.y < jet.y + fighterJetSize &&
+                player.y + player.height > jet.y
+            );
+
+            return checkObstacleCollision || checkJetCollision;
         }
 
         function jump() {
             if (!player.jumping) {
                 player.jumping = true;
                 player.jumpVelocity = player.jumpStrength;
+                player.jumpTime = 0;
             }
         }
 
@@ -219,11 +245,18 @@
             if (player.jumping) {
                 player.y -= player.jumpVelocity;
                 player.jumpVelocity -= player.gravity;
+                player.jumpTime++;
+
+                // Apply reduced gravity for a shorter time
+                if (player.jumpTime < player.maxJumpTime) {
+                    player.jumpVelocity += 0.15; // Reduced from 0.2
+                }
 
                 if (player.y > canvasHeight - player.height) {
                     player.y = canvasHeight - player.height;
                     player.jumping = false;
                     player.jumpVelocity = 0;
+                    player.jumpTime = 0;
                 }
             } else {
                 // Only adjust y position when not jumping
@@ -272,6 +305,21 @@
                         obstacles.splice(j, 1);
                         score += 10; // Bonus points for destroying an obstacle
                         break;
+                    }
+                }
+                // Check collision with fighter jets
+                if (score >= fighterJetScoreThreshold) {
+                    for (let k = fighterJets.length - 1; k >= 0; k--) {
+                        if (rockets[i] && fighterJets[k] &&
+                            rockets[i].x < fighterJets[k].x + fighterJetSize &&
+                            rockets[i].x + 20 > fighterJets[k].x &&
+                            rockets[i].y < fighterJets[k].y + fighterJetSize &&
+                            rockets[i].y + 10 > fighterJets[k].y) {
+                            rockets.splice(i, 1);
+                            fighterJets.splice(k, 1);
+                            score += 15; // Bonus points for destroying a fighter jet
+                            break;
+                        }
                     }
                 }
             }
@@ -330,6 +378,30 @@
             }
         }
 
+        function drawFighterJets() {
+            ctx.font = `${fighterJetSize}px Arial`;
+            fighterJets.forEach(jet => {
+                ctx.fillText(fighterJetEmoji, jet.x, jet.y);
+            });
+        }
+
+        function moveFighterJets() {
+            if (score < fighterJetScoreThreshold) return;
+
+            fighterJets.forEach(jet => {
+                jet.x -= fighterJetSpeed * playerSpeed;
+            });
+
+            if (fighterJets.length === 0 || fighterJets[fighterJets.length - 1].x < canvasWidth - canvasWidth / 1.5) {
+                fighterJets.push({
+                    x: canvasWidth,
+                    y: Math.random() * (canvasHeight - fighterJetSize),
+                });
+            }
+
+            fighterJets = fighterJets.filter(jet => jet.x + fighterJetSize > 0);
+        }
+
         function gameLoop() {
             if (gameOver) return;
 
@@ -337,10 +409,16 @@
 
             updatePlayerPosition();
             moveObstacles();
+            if (score >= fighterJetScoreThreshold) {
+                moveFighterJets();
+            }
             moveRockets();
 
             drawPlayer();
             drawObstacles();
+            if (score >= fighterJetScoreThreshold) {
+                drawFighterJets();
+            }
             drawRockets();
             drawBoostEffect();
 
@@ -357,7 +435,7 @@
             if (frameCount % 5 === 0) {
                 score += playerSpeed;
                 if (score % 100 === 0 && !boostActive) {
-                    obstacleSpeed += 0.5;
+                    obstacleSpeed += 0.1; // Reduced speed increase
                 }
             }
 
@@ -380,7 +458,8 @@
             frameCount = 0;
             obstacles = [];
             rockets = [];
-            obstacleSpeed = (canvasWidth / 266) + 0.5;
+            fighterJets = []; // Reset fighter jets
+            obstacleSpeed = 5; // Reset to initial speed
             playerSpeed = 1;
             lastRocketTime = 0;
             lastBoostTime = 0;
@@ -413,6 +492,20 @@
             }
         });
 
+        rocketButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (!gameOver) {
+                shootRocket();
+            }
+        });
+
+        boostButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (!gameOver) {
+                activateBoost();
+            }
+        });
+
         document.addEventListener('keyup', (event) => {
             if (event.code === 'ArrowDown') {
                 player.ducking = false;
@@ -440,20 +533,6 @@
 
         restartButton.addEventListener('click', restartGame);
 
-        rocketButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            if (!gameOver) {
-                shootRocket();
-            }
-        });
-
-        boostButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            if (!gameOver) {
-                activateBoost();
-            }
-        });
-
         // Make sure images are loaded before starting the game
         let imagesLoaded = 0;
         const totalImages = 3; // player, cactus, and rocket
@@ -461,7 +540,7 @@
         function imageLoaded() {
             imagesLoaded++;
             if (imagesLoaded === totalImages) {
-                gameLoop(); // Start the game once all images are loaded
+                initializeGame(); // Start the game once all images are loaded
             }
         }
 
