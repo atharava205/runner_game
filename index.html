@@ -40,17 +40,29 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(255, 255, 255, 0.9);
+            background-color: black; /* Changed to solid black */
             padding: 20px;
             border-radius: 10px;
             text-align: center;
             display: none;
+            color: white; /* Text color set to white for contrast */
         }
         #restartButton {
             margin-top: 10px;
             padding: 10px 20px;
             font-size: 18px;
             cursor: pointer;
+            border: none; /* Remove default border */
+            border-radius: 15px; /* Added for smooth corners */
+            background-color: #ff4757; /* Background color */
+            color: white; /* Text color */
+            transition: background-color 0.3s, transform 0.2s; /* Smooth transition for background and transform */
+        }
+        #restartButton:hover {
+            background-color: #ff6b6b; /* Change background color on hover */
+        }
+        #restartButton:active {
+            transform: scale(0.95); /* Slightly scale down on click */
         }
         #rocketButton, #boostButton {
             position: absolute;
@@ -113,7 +125,12 @@
         let player;
         let frameCount = 0;
         let playerImage = new Image();
-        playerImage.src = 'download.png'; // Update this to the correct path on your server
+        playerImage.src = 'images/animated-man-running.gif'; // Relative path
+
+        playerImage.onload = function() {
+            initializeGame(); // Start the game once the image is loaded
+        };
+
         let cactusImage = new Image();
         cactusImage.src = 'https://cdn-icons-png.flaticon.com/256/861/861783.png';
 
@@ -185,11 +202,7 @@
         initializePlayer();
 
         function drawPlayer() {
-            if (player.ducking) {
-                ctx.drawImage(playerImage, player.x, player.y + player.normalHeight - player.duckHeight, player.width, player.duckHeight);
-            } else {
-                ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
-            }
+            ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
         }
 
         function drawObstacles() {
@@ -405,16 +418,17 @@
         function gameLoop() {
             if (gameOver) return;
 
-            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight); // Clear the canvas
 
-            updatePlayerPosition();
+            updatePlayerPosition(); // Update player position
+            drawPlayer(); // Draw the player
+
             moveObstacles();
             if (score >= fighterJetScoreThreshold) {
                 moveFighterJets();
             }
             moveRockets();
 
-            drawPlayer();
             drawObstacles();
             if (score >= fighterJetScoreThreshold) {
                 drawFighterJets();
@@ -443,7 +457,7 @@
             ctx.font = 'bold 20px Arial';
             ctx.fillText('Score: ' + Math.floor(score), 10, 30);
 
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(gameLoop); // Request the next frame
         }
 
         function endGame() {
